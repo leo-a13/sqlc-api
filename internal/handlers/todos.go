@@ -4,9 +4,6 @@ import (
 	"database/sql"
 	"encoding/json"
 	"net/http"
-
-	
-    "strconv"
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 	db "todo-app/internal/db/sqlc"

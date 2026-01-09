@@ -23,59 +23,122 @@ func createTodo(q *db.Queries) http.HandlerFunc {
 		var body struct {
 			Title string `json:"title"`
 		}
-		json.NewDecoder(r.Body).Decode(&body)
 
-		todo, _ := q.CreateTodo(r.Context(), db.CreateTodoParams{
-			Title: body.Title,
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+			http.Error(w, "invalid request body", http.StatusBadRequest)
+			return
+		}
+
+		todo, err := q.CreateTodo(r.Context(), db.CreateTodoParams{
+			Title:       body.Title,
 			Description: sql.NullString{},
-			Priority: 3,
+			Priority:    3,
 		})
-		json.NewEncoder(w).Encode(todo)
+		if err != nil {
+			http.Error(w, "failed to create todo", http.StatusInternalServerError)
+			return
+		}
+
+		if err := json.NewEncoder(w).Encode(todo); err != nil {
+			http.Error(w, "failed to encode response", http.StatusInternalServerError)
+		}
 	}
 }
 
 func listTodos(q *db.Queries) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		todos, _ := q.ListTodos(r.Context())
-		json.NewEncoder(w).Encode(todos)
+		todos, err := q.ListTodos(r.Context())
+		if err != nil {
+			http.Error(w, "failed to list todos", http.StatusInternalServerError)
+			return
+		}
+
+		if err := json.NewEncoder(w).Encode(todos); err != nil {
+			http.Error(w, "failed to encode response", http.StatusInternalServerError)
+		}
 	}
 }
 
 func getTodo(q *db.Queries) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		id := chi.URLParam(r, "id")
-		parsedID, _ := uuid.Parse(id)
-		todo, _ := q.GetTodo(r.Context(), parsedID)
-		json.NewEncoder(w).Encode(todo)
+
+		todoID, err := uuid.Parse(id)
+		if err != nil {
+			http.Error(w, "invalid todo id", http.StatusBadRequest)
+			return
+		}
+
+		todo, err := q.GetTodo(r.Context(), todoID)
+		if err != nil {
+			http.Error(w, "todo not found", http.StatusNotFound)
+			return
+		}
+
+		if err := json.NewEncoder(w).Encode(todo); err != nil {
+			http.Error(w, "failed to encode response", http.StatusInternalServerError)
+		}
 	}
 }
 
 func updateTodo(q *db.Queries) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		id := chi.URLParam(r, "id")
-		parsedID, _ := uuid.Parse(id)
+
 		var body struct {
 			Completed bool `json:"completed"`
 		}
-		json.NewDecoder(r.Body).Decode(&body)
 
-		existing, _ := q.GetTodo(r.Context(), parsedID)
-		updated, _ := q.UpdateTodo(r.Context(), db.UpdateTodoParams{
-			ID: parsedID,
-			Title: existing.Title,
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+			http.Error(w, "invalid request body", http.StatusBadRequest)
+			return
+		}
+
+		todoID, err := uuid.Parse(id)
+		if err != nil {
+			http.Error(w, "invalid todo id", http.StatusBadRequest)
+			return
+		}
+
+		existing, err := q.GetTodo(r.Context(), todoID)
+		if err != nil {
+			http.Error(w, "todo not found", http.StatusNotFound)
+			return
+		}
+
+		updated, err := q.UpdateTodo(r.Context(), db.UpdateTodoParams{
+			ID:          todoID,
+			Title:       existing.Title,
 			Description: existing.Description,
-			Completed: body.Completed,
-			Priority: existing.Priority,
+			Completed:   body.Completed,
+			Priority:    existing.Priority,
 		})
-		json.NewEncoder(w).Encode(updated)
+		if err != nil {
+			http.Error(w, "failed to update todo", http.StatusInternalServerError)
+			return
+		}
+
+		if err := json.NewEncoder(w).Encode(updated); err != nil {
+			http.Error(w, "failed to encode response", http.StatusInternalServerError)
+		}
 	}
 }
 
 func deleteTodo(q *db.Queries) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		id := chi.URLParam(r, "id")
-		parsedID, _ := uuid.Parse(id)
-		q.DeleteTodo(r.Context(), parsedID)
+
+		todoID, err := uuid.Parse(id)
+		if err != nil {
+			http.Error(w, "invalid todo id", http.StatusBadRequest)
+			return
+		}
+
+		if err := q.DeleteTodo(r.Context(), todoID); err != nil {
+			http.Error(w, "failed to delete todo", http.StatusInternalServerError)
+			return
+		}
+
 		w.WriteHeader(http.StatusNoContent)
 	}
 }
